@@ -1,0 +1,41 @@
+# Build output
+target/
+*.class
+*.jar
+*.war
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.project
+.classpath
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Local test artifacts
+scripts/.tokens.json
+scripts/__pycache__/
+
+# Local env overrides
+application-local.yml
+application-local.yaml
+application-local.properties
+.env
+
+# Claude / agent metadata
+.claude/

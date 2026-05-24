@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlashMall 秒杀商城</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .seckill-card { border: 2px solid #ff4500; border-radius: 8px; }
+        .price-original { text-decoration: line-through; color: #999; font-size: 0.85em; }
+        .price-seckill { color: #ff4500; font-size: 1.3em; font-weight: bold; }
+        .countdown { font-family: monospace; font-size: 1.1em; color: #ff4500; }
+        .badge-active { background-color: #ff4500; }
+        .navbar-brand { font-weight: bold; color: #ff4500 !important; }
+    </style>
+</head>
+<body>
+<!-- 导航栏 -->
+<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm">
+    <div class="container">
+        <a class="navbar-brand" href="/">⚡ FlashMall</a>
+        <div class="ms-auto d-flex align-items-center gap-2">
+            <span id="username-display" class="text-muted" style="display:none"></span>
+            <a href="/orders" id="orders-btn" class="btn btn-outline-secondary btn-sm" style="display:none">我的订单</a>
+            <button id="logout-btn" class="btn btn-outline-danger btn-sm" style="display:none" onclick="logout()">退出</button>
+            <a href="/login" id="login-btn" class="btn btn-danger btn-sm">登录</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container mt-4">
+    <!-- 秒杀活动区 -->
+    <div class="d-flex align-items-center mb-3">
+        <span class="badge bg-danger me-2 fs-6">秒杀活动</span>
+        <h5 class="mb-0">限时抢购</h5>
+    </div>
+    <div id="activities-container" class="row g-3">
+        <div class="col-12 text-center text-muted py-5">加载中...</div>
+    </div>
+
+    <!-- 商品列表区 -->
+    <h5 class="mt-5 mb-3">全部商品</h5>
+    <div id="products-container" class="row g-3">
+        <div class="col-12 text-center text-muted py-5">加载中...</div>
+    </div>
+</div>
+
+<!-- 秒杀模态框 -->
+<div class="modal fade" id="seckillModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">确认秒杀</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="modal-product-name" class="fw-bold fs-5"></p>
+                <p>秒杀价：<span id="modal-price" class="text-danger fw-bold fs-4"></span></p>
+                <p class="text-muted small">每人限购一件，提交后30分钟内完成支付</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirm-seckill-btn" onclick="confirmSeckill()">立即抢购</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let currentActivityId = null;
+    const token = localStorage.getItem('accessToken');
+
+    // 初始化用户状态
+    (function initUser() {
+        const nickname = localStorage.getItem('nickname');
+        if (token && nickname) {
+            document.getElementById('username-display').textContent = 'Hi, ' + nickname;
+            document.getElementById('username-display').style.display = '';
+            document.getElementById('orders-btn').style.display = '';
+            document.getElementById('logout-btn').style.display = '';
+            document.getElementById('login-btn').style.display = 'none';
+        }
+    })();
+
+    // 加载秒杀活动
+    async function loadActivities() {
+        const res = await fetch('/api/seckill/list');
+        const data = await res.json();
+        if (data.code !== 200 || !data.data.length) {
+            document.getElementById('activities-container').innerHTML =
+                '<div class="col-12 text-center text-muted py-4">暂无进行中的秒杀活动</div>';
+            return;
+        }
+        document.getElementById('activities-container').innerHTML = data.data.map(a => `
+            <div class="col-md-4 col-sm-6">
+                <div class="card seckill-card h-100">
+                    <div class="card-body">
+                        <span class="badge badge-active text-white mb-2">进行中</span>
+                        <h6 class="card-title">${a.productName}</h6>
+                        <div class="d-flex align-items-center gap-2 my-2">
+                            <span class="price-seckill">¥${a.seckillPrice}</span>
+                            <span class="price-original">¥${a.originalPrice}</span>
+                        </div>
+                        <p class="text-muted small mb-2">库存：${a.stock} 件</p>
+                        <p class="countdown small" id="countdown-${a.activityId}">截止：${a.endTime}</p>
+                        <button class="btn btn-danger btn-sm w-100"
+                            onclick="openSeckillModal(${a.activityId}, '${a.productName}', ${a.seckillPrice})">
+                            立即抢购
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // 加载商品列表
+    async function loadProducts() {
+        const res = await fetch('/api/product/list');
+        const data = await res.json();
+        if (data.code !== 200) return;
+        const page = data.data;
+        document.getElementById('products-container').innerHTML = page.records.map(p => `
+            <div class="col-md-3 col-sm-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h6 class="card-title">${p.name}</h6>
+                        <p class="text-danger fw-bold">¥${p.price}</p>
+                        <p class="text-muted small">${p.description || ''}</p>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function openSeckillModal(activityId, productName, price) {
+        if (!token) { window.location.href = '/login'; return; }
+        currentActivityId = activityId;
+        document.getElementById('modal-product-name').textContent = productName;
+        document.getElementById('modal-price').textContent = '¥' + price;
+        new bootstrap.Modal(document.getElementById('seckillModal')).show();
+    }
+
+    async function confirmSeckill() {
+        document.getElementById('confirm-seckill-btn').disabled = true;
+        document.getElementById('confirm-seckill-btn').textContent = '处理中...';
+        try {
+            const tokenRes = await fetch('/api/order/token', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            const tokenData = await tokenRes.json();
+            if (tokenData.code !== 200) {
+                alert('获取幂等Token失败：' + tokenData.message);
+                return;
+            }
+            const res = await fetch(`/api/seckill/do/${currentActivityId}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Idempotent-Token': tokenData.data
+                }
+            });
+            const data = await res.json();
+            bootstrap.Modal.getInstance(document.getElementById('seckillModal')).hide();
+            if (data.code === 200) {
+                alert('秒杀成功！正在处理订单，请稍后到"我的订单"查看。\n幂等键：' + data.data);
+                // 轮询订单状态
+                pollOrder(data.data);
+            } else {
+                alert('秒杀失败：' + data.message);
+            }
+        } finally {
+            document.getElementById('confirm-seckill-btn').disabled = false;
+            document.getElementById('confirm-seckill-btn').textContent = '立即抢购';
+        }
+    }
+
+    async function pollOrder(key) {
+        for (let i = 0; i < 10; i++) {
+            await new Promise(r => setTimeout(r, 1000));
+            const res = await fetch(`/api/order/by-key/${key}`, {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            const data = await res.json();
+            if (data.code === 200 && data.data) {
+                alert('订单已创建！订单号：' + data.data.id);
+                window.location.href = '/orders';
+                return;
+            }
+        }
+    }
+
+    async function logout() {
+        await fetch('/api/user/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('username');
+        window.location.reload();
+    }
+
+    loadActivities();
+    loadProducts();
+</script>
+</body>
+</html>

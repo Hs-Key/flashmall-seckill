@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>我的订单 - FlashMall</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-badge-0 { background-color: #ffc107; color: #000; }
+        .status-badge-1 { background-color: #0d6efd; }
+        .status-badge-2 { background-color: #0dcaf0; color: #000; }
+        .status-badge-3 { background-color: #198754; }
+        .status-badge-4 { background-color: #6c757d; }
+        .navbar-brand { font-weight: bold; color: #ff4500 !important; }
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm">
+    <div class="container">
+        <a class="navbar-brand" href="/">⚡ FlashMall</a>
+        <div class="ms-auto d-flex align-items-center gap-2">
+            <span id="username-display" class="text-muted"></span>
+            <a href="/" class="btn btn-outline-secondary btn-sm">返回首页</a>
+            <button class="btn btn-outline-danger btn-sm" onclick="logout()">退出</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container mt-4">
+    <h5 class="mb-3">我的订单</h5>
+
+    <!-- 状态筛选 -->
+    <div class="mb-3 d-flex gap-2 flex-wrap">
+        <button class="btn btn-sm btn-danger active-filter" onclick="filterOrders(null, this)">全部</button>
+        <button class="btn btn-sm btn-outline-warning" onclick="filterOrders(0, this)">待支付</button>
+        <button class="btn btn-sm btn-outline-primary" onclick="filterOrders(1, this)">已支付</button>
+        <button class="btn btn-sm btn-outline-info" onclick="filterOrders(2, this)">已发货</button>
+        <button class="btn btn-sm btn-outline-success" onclick="filterOrders(3, this)">已完成</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="filterOrders(4, this)">已取消</button>
+    </div>
+
+    <div id="orders-container">
+        <div class="text-center text-muted py-5">加载中...</div>
+    </div>
+
+    <!-- 分页 -->
+    <div class="d-flex justify-content-center mt-4" id="pagination"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const token = localStorage.getItem('accessToken');
+    const username = localStorage.getItem('username');
+
+    if (!token) { window.location.href = '/login'; }
+    if (username) document.getElementById('username-display').textContent = 'Hi, ' + username;
+
+    const STATUS_TEXT  = ['待支付', '已支付', '已发货', '已完成', '已取消'];
+    const STATUS_CLASS = ['status-badge-0', 'status-badge-1', 'status-badge-2', 'status-badge-3', 'status-badge-4'];
+
+    let currentPage = 1;
+    let currentStatus = null;
+
+    async function loadOrders(page = 1) {
+        currentPage = page;
+        const res = await fetch(`/api/order/list?page=${page}&size=10`, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        if (data.code !== 200) {
+            document.getElementById('orders-container').innerHTML = '<div class="alert alert-danger">' + data.message + '</div>';
+            return;
+        }
+
+        const pageData = data.data;
+        let records = pageData.records;
+
+        // 前端状态筛选（实际项目应在后端查询）
+        if (currentStatus !== null) {
+            records = records.filter(o => o.status === currentStatus);
+        }
+
+        if (!records.length) {
+            document.getElementById('orders-container').innerHTML =
+                '<div class="text-center text-muted py-5">暂无订单</div>';
+            renderPagination(pageData);
+            return;
+        }
+
+        document.getElementById('orders-container').innerHTML = records.map(order => `
+            <div class="card mb-3 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="fw-bold">${order.productName}</div>
+                            <div class="text-muted small mt-1">
+                                订单号：${order.id}<br>
+                                下单时间：${formatTime(order.createdAt)}
+                                ${order.paidAt ? '<br>支付时间：' + formatTime(order.paidAt) : ''}
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge ${STATUS_CLASS[order.status]} mb-2">${STATUS_TEXT[order.status]}</span>
+                            <div class="text-danger fw-bold fs-5">¥${order.amount}</div>
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        ${order.status === 0 ? `
+                            <button class="btn btn-danger btn-sm" onclick="payOrder('${order.id}')">立即支付</button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="cancelOrder('${order.id}')">取消订单</button>
+                        ` : ''}
+                        ${order.status === 0 ? `
+                            <span class="text-warning small align-self-center ms-2">⏰ 请在30分钟内完成支付</span>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        renderPagination(pageData);
+    }
+
+    function renderPagination(pageData) {
+        if (pageData.pages <= 1) { document.getElementById('pagination').innerHTML = ''; return; }
+        let html = '<nav><ul class="pagination pagination-sm">';
+        for (let i = 1; i <= pageData.pages; i++) {
+            html += `<li class="page-item ${i === pageData.current ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="loadOrders(${i})">${i}</a></li>`;
+        }
+        html += '</ul></nav>';
+        document.getElementById('pagination').innerHTML = html;
+    }
+
+    function filterOrders(status, btn) {
+        currentStatus = status;
+        document.querySelectorAll('.active-filter').forEach(b => b.classList.remove('active-filter'));
+        btn.classList.add('active-filter');
+        loadOrders(1);
+    }
+
+    async function payOrder(orderId) {
+        if (!confirm('确认支付此订单？')) return;
+        const res = await fetch(`/api/order/${orderId}/pay`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        if (data.code === 200) { alert('支付成功！'); loadOrders(currentPage); }
+        else alert('支付失败：' + data.message);
+    }
+
+    async function cancelOrder(orderId) {
+        if (!confirm('确认取消此订单？')) return;
+        const res = await fetch(`/api/order/${orderId}/cancel`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        if (data.code === 200) { alert('订单已取消'); loadOrders(currentPage); }
+        else alert('取消失败：' + data.message);
+    }
+
+    async function logout() {
+        await fetch('/api/user/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+        localStorage.clear();
+        window.location.href = '/login';
+    }
+
+    function formatTime(t) {
+        if (!t) return '';
+        return Array.isArray(t)
+            ? `${t[0]}-${String(t[1]).padStart(2,'0')}-${String(t[2]).padStart(2,'0')} ${String(t[3]).padStart(2,'0')}:${String(t[4]).padStart(2,'0')}`
+            : t;
+    }
+
+    loadOrders();
+</script>
+</body>
+</html>

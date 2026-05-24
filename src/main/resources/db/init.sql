@@ -82,12 +82,8 @@ CREATE TABLE t_order (
 -- ===========================
 -- 测试数据
 -- ===========================
-
--- 管理员账号（密码：admin123，BCrypt加密）
-INSERT INTO t_user (username, password, nickname, role) VALUES
-('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBpwTTyBo6Dywu', '管理员', 'ADMIN'),
-('user1', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBpwTTyBo6Dywu', '测试用户1', 'USER'),
-('user2', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBpwTTyBo6Dywu', '测试用户2', 'USER');
+-- 注意：t_user 不预置任何账号，请通过 POST /api/user/register 自行注册。
+-- 注册第一个账号后，如需 ADMIN 权限，手动 UPDATE t_user SET role='ADMIN' WHERE id=1;
 
 -- 商品数据
 INSERT INTO t_product (name, description, price, stock, image_url) VALUES

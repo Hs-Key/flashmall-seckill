@@ -109,7 +109,30 @@ mvn spring-boot:run
 - Swagger：http://localhost:8080/swagger-ui.html
 - RabbitMQ 管理台：http://localhost:15672 （guest/guest）
 
-### 3. 主要接口
+### 3. 注册账号
+
+`init.sql` 不预置任何用户。**首次使用请先到 `/login` 页面切到「注册」 Tab 自助注册**（或直接调 `POST /api/user/register`）。
+
+如需 ADMIN 权限访问 `/api/admin/**`，注册后到 DB 手动改一下：
+
+```sql
+UPDATE t_user SET role = 'ADMIN' WHERE username = '你的用户名';
+```
+
+### 4. 环境变量（可选）
+
+`application.yml` 里所有连接配置都用 `${VAR:default}` 形式，本地开发直接用默认值即可。生产部署用环境变量覆盖：
+
+```
+MYSQL_HOST / MYSQL_PORT / MYSQL_DATABASE / MYSQL_USERNAME / MYSQL_PASSWORD
+REDIS_HOST / REDIS_PORT / REDIS_PASSWORD / REDIS_DATABASE
+RABBITMQ_HOST / RABBITMQ_PORT / RABBITMQ_USERNAME / RABBITMQ_PASSWORD / RABBITMQ_VHOST
+JWT_SECRET / JWT_ACCESS_TTL / JWT_REFRESH_TTL
+```
+
+⚠️ `JWT_SECRET` 必须在生产环境覆盖，长度至少 32 字节。
+
+### 5. 主要接口
 
 | Method | 路径 | 说明 |
 |---|---|---|

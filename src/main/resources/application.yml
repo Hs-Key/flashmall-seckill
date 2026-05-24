@@ -13,9 +13,9 @@ spring:
 
   # 数据源配置
   datasource:
-    url: jdbc:mysql://localhost:3306/flashmall?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-    username: root
-    password: 123456
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:flashmall}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       minimum-idle: 5
@@ -26,10 +26,10 @@ spring:
   # Redis 配置
   data:
     redis:
-      host: localhost
-      port: 6379
-      password:           # 无密码留空
-      database: 0
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}      # 无密码留空
+      database: ${REDIS_DATABASE:0}
       timeout: 3000ms
       lettuce:
         pool:
@@ -39,11 +39,11 @@ spring:
 
   # RabbitMQ 配置
   rabbitmq:
-    host: localhost
-    port: 5672
-    username: guest
-    password: guest
-    virtual-host: /
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VHOST:/}
     # 生产者消息确认（防止消息丢失）
     publisher-confirm-type: correlated
     publisher-returns: true
@@ -88,9 +88,10 @@ mybatis-plus:
 
 # JWT 配置
 jwt:
-  secret: flashmall-secret-key-must-be-at-least-256-bits-long-for-hs256
-  access-ttl: 7200        # access token 有效期：2小时（秒）
-  refresh-ttl: 604800     # refresh token 有效期：7天（秒）
+  # 生产环境务必通过环境变量覆盖，且长度 >= 32 字节
+  secret: ${JWT_SECRET:flashmall-dev-secret-please-override-in-prod-must-be-at-least-256-bits}
+  access-ttl: ${JWT_ACCESS_TTL:7200}      # access token 有效期：2小时（秒）
+  refresh-ttl: ${JWT_REFRESH_TTL:604800}  # refresh token 有效期：7天（秒）
 
 # 秒杀配置
 seckill:
